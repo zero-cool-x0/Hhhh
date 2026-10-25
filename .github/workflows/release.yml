@@ -1,0 +1,102 @@
+name: Build and Publish Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Build Web Application
+        run: npm run build
+
+      - name: Package Release Assets
+        id: package
+        run: |
+          mkdir -p release-assets
+          ZIP_NAME="boss-escape-office-mode-build-${{ github.run_number }}.zip"
+          cd dist
+          zip -r "../release-assets/${ZIP_NAME}" ./*
+          cd ..
+          echo "zip_path=release-assets/${ZIP_NAME}" >> $GITHUB_OUTPUT
+          echo "zip_name=${ZIP_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Upload Actions Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: boss-escape-web-build
+          path: dist/
+          if-no-files-found: error
+
+      - name: Publish to GitHub Releases
+        id: create_release
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG_NAME="v1.0.${{ github.run_number }}"
+          TITLE="Boss Escape: Ultimate Office Mode - Build #${{ github.run_number }}"
+          
+          NOTES=$(cat << 'EOF'
+          ### 🎮 Boss Escape: Ultimate Office Mode - Release
+          
+          **Release Information:**
+          - **Build Run Number:** #${{ github.run_number }}
+          - **Commit SHA:** ${{ github.sha }}
+          - **Status:** Production Web Build Ready
+          
+          **Features Included:**
+          - 🕹️ Slacking Mode with Fun Meter & high-score multipliers
+          - 👔 3 Boss Tiers: Manager Henderson, Strict HR Karen, and Billionaire CEO Lord BigBoss
+          - 🕶️ Breakroom Shop with 6 Worker Skins & Power-Ups (Turbo Coffee, Sunglasses, Donut)
+          - 📱 Mobile Touch Controls & Desktop Spacebar/Mouse support
+          - 💰 Google AdMob Test Placeholders (Banner, Rewarded Video Revive, Interstitial)
+          
+          *Download the attached zip file below to deploy or run locally.*
+          EOF
+          )
+          
+          gh release create "${TAG_NAME}" \
+            "${{ steps.package.outputs.zip_path }}" \
+            --title "${TITLE}" \
+            --notes "${NOTES}" \
+            --target "${{ github.sha }}" \
+            --latest
+
+      - name: Report Release Result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ steps.create_release.outcome }}" = "success" ]; then
+            echo "### 🚀 GitHub Release Published Successfully!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- **Tag:** \`v1.0.${{ github.run_number }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Asset:** \`${{ steps.package.outputs.zip_name }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- You can download the release directly from the **Releases** tab in your GitHub repository." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ⚠️ Build Succeeded, Release Step Pending Push" >> $GITHUB_STEP_SUMMARY
+            echo "The web app was built and saved as a GitHub Actions artifact (\`boss-escape-web-build\`)." >> $GITHUB_STEP_SUMMARY
+            echo "Ensure your repository has **Read and write permissions** enabled under *Settings > Actions > General > Workflow permissions*." >> $GITHUB_STEP_SUMMARY
+          fi
