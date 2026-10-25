@@ -1,0 +1,6 @@
+{
+  "name": "Boss Escape: Ultimate Office Mode",
+  "description": "Hilarious office stealth game! Slack off when the boss isn't looking, furiously type when they inspect your desk, unlock crazy skins, and survive the workday.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
